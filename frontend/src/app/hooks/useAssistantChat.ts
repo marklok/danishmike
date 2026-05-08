@@ -756,7 +756,13 @@ export function useAssistantChat({
                             continue;
                         }
 
+                        if (data.type === "loading_citations") {
+                            setIsLoadingCitations(true);
+                            continue;
+                        }
+
                         if (data.type === "citations") {
+                            setIsLoadingCitations(false);
                             // End-of-stream signal — scrub any lingering
                             // placeholders so they don't persist into the
                             // finalised message.

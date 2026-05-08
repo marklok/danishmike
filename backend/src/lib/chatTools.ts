@@ -428,14 +428,16 @@ function normalizeCitation(raw: unknown): ParsedCitation | null {
     if (typeof c.ref !== "number" || typeof c.doc_id !== "string") return null;
     if (typeof c.quote !== "string" || !c.quote) return null;
     let page: number | string;
-    if (typeof c.page === "number") {
+    if (c.page === null || c.page === undefined) {
+        page = 0;
+    } else if (typeof c.page === "number") {
         page = c.page;
     } else if (typeof c.page === "string" && /^\d+\s*-\s*\d+$/.test(c.page)) {
         page = c.page;
     } else {
-        const n = parseInt(String(c.page ?? ""), 10);
-        if (!Number.isFinite(n)) return null;
-        page = n;
+        const n = parseInt(String(c.page), 10);
+        if (!Number.isFinite(n)) page = 0;
+        else page = n;
     }
     return { ref: c.ref, doc_id: c.doc_id, page, quote: c.quote };
 }
@@ -2368,6 +2370,11 @@ export async function runLLMStream(params: {
             }
             visibleTailBuffer = "";
             citationsOpenSeen = true;
+            try {
+                write(
+                    `data: ${JSON.stringify({ type: "loading_citations" })}\n\n`,
+                );
+            } catch { /* client may have disconnected */ }
             return;
         }
 
@@ -2576,8 +2583,10 @@ export async function runLLMStream(params: {
                   quote: c.quote,
               };
           });
-    write(`data: ${JSON.stringify({ type: "citations", citations })}\n\n`);
-    write("data: [DONE]\n\n");
+    try {
+        write(`data: ${JSON.stringify({ type: "citations", citations })}\n\n`);
+        write("data: [DONE]\n\n");
+    } catch { /* client may have disconnected — fullText is still returned for DB save */ }
 
     return { fullText, events };
 }
