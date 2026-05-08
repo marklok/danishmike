@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useEffect, useState } from "react";
+import { useId, useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import remarkGfm from "remark-gfm";
@@ -16,6 +16,7 @@ import type {
 } from "../shared/types";
 import { EditCard, applyOptimisticResolution } from "./EditCard";
 import { PreResponseWrapper } from "../shared/PreResponseWrapper";
+import { LawCitationPanel, isLawCitation } from "./LawCitationPanel";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -1076,6 +1077,8 @@ export function AssistantMessage({
     const messageKey = useId();
     const contentDivRef = useRef<HTMLDivElement | null>(null);
     const [isCopied, setIsCopied] = useState(false);
+    const [activeLawCitation, setActiveLawCitation] =
+        useState<MikeCitationAnnotation | null>(null);
     // Per-document override of the download URL, set as Accept/Reject resolves
     // each tracked change and produces a new version.
     const [resolvedOverrides, setResolvedOverrides] = useState<
@@ -1098,6 +1101,17 @@ export function AssistantMessage({
         }
         onEditResolved?.(args);
     };
+
+    const handleCitationClick = useCallback(
+        (c: MikeCitationAnnotation) => {
+            if (isLawCitation(c)) {
+                setActiveLawCitation(c);
+            } else {
+                onCitationClick?.(c);
+            }
+        },
+        [onCitationClick],
+    );
 
     const status: StatusState = isError
         ? "error"
@@ -1211,7 +1225,7 @@ export function AssistantMessage({
                     <MarkdownContent
                         text={processed}
                         citationsList={citationsList}
-                        onCitationClick={onCitationClick}
+                        onCitationClick={handleCitationClick}
                         divRef={isLastContent ? contentDivRef : undefined}
                     />
                 </div>
@@ -1266,8 +1280,8 @@ export function AssistantMessage({
                     filename={event.filename}
                     isStreaming={event.isStreaming}
                     onClick={
-                        !event.isStreaming && ann && onCitationClick
-                            ? () => onCitationClick(ann)
+                        !event.isStreaming && ann && handleCitationClick
+                            ? () => handleCitationClick(ann)
                             : undefined
                     }
                     showConnector={showConnector}
@@ -1354,7 +1368,7 @@ export function AssistantMessage({
                                         <MarkdownContent
                                             text={processedTexts[g.index]}
                                             citationsList={citationsList}
-                                            onCitationClick={onCitationClick}
+                                            onCitationClick={handleCitationClick}
                                             divRef={
                                                 isLastContent
                                                     ? contentDivRef
@@ -1617,6 +1631,12 @@ export function AssistantMessage({
                     )}
                 </div>
             </div>
+            {activeLawCitation && (
+                <LawCitationPanel
+                    citation={activeLawCitation}
+                    onClose={() => setActiveLawCitation(null)}
+                />
+            )}
         </div>
     );
 }
