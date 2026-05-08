@@ -13,6 +13,7 @@ import {
 } from "../lib/chatTools";
 import { getUserApiKeys } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
+import { retrieveDanishLaw, formatLawContext } from "../lib/lawRetrieval";
 
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
@@ -122,7 +123,18 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
     // the system prompt with the current-turn doc_id slugs so the model
     // knows which docs the user is highlighting *now*, distinct from
     // the broader project doc list.
+    // Retrieve relevant Danish law context based on the latest user message.
     let systemPromptExtra = PROJECT_SYSTEM_PROMPT_EXTRA;
+    if (lastUser?.content) {
+        try {
+            const lawChunks = await retrieveDanishLaw(lastUser.content);
+            const lawBlock = formatLawContext(lawChunks);
+            if (lawBlock) systemPromptExtra += `\n\n${lawBlock}`;
+        } catch (err) {
+            console.error("[project-chat/stream] law retrieval failed:", err);
+        }
+    }
+
     if (attached_documents?.length) {
         const slugByDocumentId = new Map<string, string>();
         for (const [slug, info] of Object.entries(docIndex)) {

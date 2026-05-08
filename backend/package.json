@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "sync:retsinformation": "tsx src/ingestion/sync.ts",
+    "sync:eurlex": "tsx src/ingestion/sync-eurlex.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
@@ -24,6 +26,7 @@
     "libreoffice-convert": "^1.6.0",
     "mammoth": "^1.9.0",
     "multer": "^1.4.5-lts.2",
+    "openai": "^6.36.0",
     "pdfjs-dist": "^4.10.38",
     "resend": "^4.5.1"
   },

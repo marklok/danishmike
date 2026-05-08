@@ -13,6 +13,7 @@ import {
 import { completeText } from "../lib/llm";
 import { getUserApiKeys, getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
+import { retrieveDanishLaw, formatLawContext } from "../lib/lawRetrieval";
 
 export const chatRouter = Router();
 
@@ -416,7 +417,18 @@ chatRouter.post("/", requireAuth, async (req, res) => {
         db,
         docIndex,
     );
-    const apiMessages = buildMessages(enrichedMessages, docAvailability);
+    // Retrieve relevant Danish law context based on the latest user message.
+    let lawContextExtra: string | undefined;
+    if (lastUser?.content) {
+        try {
+            const lawChunks = await retrieveDanishLaw(lastUser.content);
+            lawContextExtra = formatLawContext(lawChunks) ?? undefined;
+        } catch (err) {
+            console.error("[chat/stream] law retrieval failed:", err);
+        }
+    }
+
+    const apiMessages = buildMessages(enrichedMessages, docAvailability, lawContextExtra);
 
     const workflowStore = await buildWorkflowStore(userId, userEmail, db);
 
@@ -424,6 +436,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
         apiMessageCount: apiMessages.length,
         docCount: Object.keys(docIndex).length,
         workflowCount: Object.keys(workflowStore).length,
+        hasLawContext: !!lawContextExtra,
     });
 
     res.setHeader("Content-Type", "text/event-stream");
