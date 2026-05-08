@@ -16,7 +16,7 @@ export default function AssistantChatPage() {
         useChatHistoryContext();
 
     const initialMessages = newChatMessages ?? [];
-    const { messages, isResponseLoading, handleChat, setMessages, cancel } =
+    const { messages, isResponseLoading, isLoadingCitations, handleChat, setMessages, cancel } =
         useAssistantChat({ initialMessages, chatId: id });
 
     const hasAutoSent = useRef(false);
@@ -63,6 +63,7 @@ export default function AssistantChatPage() {
         <ChatView
             messages={messages}
             isResponseLoading={isResponseLoading}
+            isLoadingCitations={isLoadingCitations}
             handleChat={handleChat}
             cancel={cancel}
         />

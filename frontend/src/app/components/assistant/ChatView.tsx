@@ -21,6 +21,7 @@ import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 interface Props {
     messages: MikeMessage[];
     isResponseLoading: boolean;
+    isLoadingCitations?: boolean;
     handleChat: (message: MikeMessage) => Promise<string | null>;
     cancel: () => void;
 }
@@ -28,6 +29,7 @@ interface Props {
 export function ChatView({
     messages,
     isResponseLoading,
+    isLoadingCitations = false,
     handleChat,
     cancel,
 }: Props) {
@@ -503,7 +505,8 @@ export function ChatView({
                                                 events={msg.events}
                                                 isStreaming={
                                                     i === messages.length - 1 &&
-                                                    isResponseLoading
+                                                    isResponseLoading &&
+                                                    !isLoadingCitations
                                                 }
                                                 isError={!!(msg as any).error}
                                                 errorMessage={
@@ -579,6 +582,7 @@ export function ChatView({
                                 onSubmit={handleChat}
                                 onCancel={cancel}
                                 isLoading={isResponseLoading}
+                                isLoadingCitations={isLoadingCitations}
                             />
                             <div className="py-3 text-center">
                                 <p className="text-xs text-gray-500">

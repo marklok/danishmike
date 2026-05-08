@@ -39,6 +39,7 @@ interface Props {
     onSubmit: (message: MikeMessage) => void;
     onCancel: () => void;
     isLoading: boolean;
+    isLoadingCitations?: boolean;
     hideAddDocButton?: boolean;
     hideWorkflowButton?: boolean;
     onProjectsClick?: () => void;
@@ -51,6 +52,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         onSubmit,
         onCancel,
         isLoading,
+        isLoadingCitations = false,
         hideAddDocButton,
         hideWorkflowButton,
         onProjectsClick,
@@ -115,7 +117,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
 
     const handleSubmit = () => {
         const query = value.trim();
-        if (!query || isLoading) return;
+        if (!query || showStopButton) return;
         if (!isModelAvailable(model, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(model));
             return;
@@ -142,8 +144,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         });
     };
 
+    const showStopButton = isLoading && !isLoadingCitations;
+
     const handleActionClick = () => {
-        if (isLoading) {
+        if (showStopButton) {
             onCancel();
         } else {
             handleSubmit();
@@ -283,9 +287,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 type="button"
                                 className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center cursor-pointer disabled:cursor-default disabled:from-neutral-600 disabled:to-black backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
                                 onClick={handleActionClick}
-                                disabled={!isLoading && !value.trim()}
+                                disabled={!showStopButton && !value.trim()}
                             >
-                                {isLoading ? (
+                                {showStopButton ? (
                                     <Square
                                         className="h-4 w-4"
                                         fill="currentColor"
