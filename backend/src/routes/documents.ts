@@ -838,6 +838,7 @@ async function handleDocumentUpload(
   db: ReturnType<typeof createServerSupabase>,
 ) {
   const file = req.file;
+  console.log("[upload] incoming:", file ? `${file.originalname} (${file.size} bytes)` : "NO FILE", "userId:", userId);
   if (!file) return void res.status(400).json({ detail: "file is required" });
 
   const filename = file.originalname;
@@ -961,6 +962,7 @@ async function handleDocumentUpload(
       : updated;
     return void res.status(201).json(responseDoc);
   } catch (e) {
+    console.error("[upload] processing failed:", e);
     await db.from("documents").update({ status: "error" }).eq("id", doc.id);
     return void res
       .status(500)

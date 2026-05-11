@@ -20,12 +20,14 @@ interface Props {
 export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (!files.length) return;
         setUploading(true);
+        setUploadError(null);
         try {
             const uploaded = await Promise.all(
                 files.map((f) => uploadStandaloneDocument(f)),
@@ -33,6 +35,7 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
             uploaded.forEach((doc) => onSelectDoc(doc));
         } catch (err) {
             console.error("Upload failed:", err);
+            setUploadError(err instanceof Error ? err.message : "Upload failed");
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -40,7 +43,7 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
     };
 
     return (
-        <>
+        <div className="relative">
             <input
                 ref={fileInputRef}
                 type="file"
@@ -105,6 +108,11 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-        </>
+        {uploadError && (
+            <div className="absolute bottom-full left-0 mb-1 max-w-xs rounded-md bg-red-50 border border-red-200 px-2 py-1 text-xs text-red-700 shadow-sm z-50 whitespace-pre-wrap">
+                Upload failed: {uploadError}
+            </div>
+        )}
+        </div>
     );
 }

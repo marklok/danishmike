@@ -506,6 +506,15 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     devLog("[chat/stream] resolved chatId", chatId);
 
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    // Temporary debug — log files attached to every user message
+    console.log(
+        "[chat/stream] message files debug:",
+        JSON.stringify(
+            messages.map((m) => ({ role: m.role, files: (m as any).files ?? null })),
+            null,
+            2,
+        ),
+    );
     if (lastUser) {
         await db.from("chat_messages").insert({
             chat_id: chatId,
