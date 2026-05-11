@@ -94,7 +94,14 @@ const LAW_ALIASES: Record<string, string[]> = {
   erstatningsansvarsloven:    ["erstatningsansvar", "erstatningsansvarsloven", "eal"],
   revisorloven:               ["revisor", "revisorloven"],
   tinglysningsloven:          ["tinglysning", "tinglysningsloven", "tl"],
-  erhvervslejeloven:          ["erhvervslejeloven", "ell"],
+  // Tenancy laws — order matters: more specific (almen*, erhverv*) before "lejeloven"
+  // so that "almenlejelovens § 5" doesn't fall through to the lejeloven alias.
+  almenlejeloven:             ["almenlejelov", "almenlejeloven"],
+  almenboligloven:            ["almenboligloven"],
+  erhvervslejeloven:          ["erhvervslejelov", "erhvervslejeloven", "ell"],
+  "lov-om-boligforhold-2022-342": ["lov om boligforhold", "boligforholdsloven"],
+  "boligreguleringsloven-lbk-2019-929": ["boligreguleringsloven", "boligregulering"],
+  lejeloven:                  ["lejeloven"],   // last — "lejeloven" is a suffix of the above
   inkorporeringsloven:        ["emrk", "menneskerettighedskonvention"],
   ferieloven:                 ["ferie", "ferieloven"],
   arbejdsmiljøloven:          ["arbejdsmiljø", "arbejdsmiljøloven"],

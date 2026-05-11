@@ -30,6 +30,14 @@ const LAW_ACRONYMS: Record<string, string[]> = {
   tinglysningsloven:       ["tinglysningsloven", "TL"],
   erhvervslejeloven:       ["erhvervslejeloven", "ELL"],
   inkorporeringsloven:     ["inkorporeringsloven", "EMRK"],
+  // Tenancy laws
+  lejeloven:               ["lejeloven"],
+  "lejeloven-2022-341":    ["lejeloven", "lov om leje 2022"],
+  "lejeloven-lbk-2019-927": ["lejeloven", "gammel lejelov", "lejelov 2019"],
+  "boligreguleringsloven-lbk-2019-929": ["boligreguleringsloven", "gammel boligreguleringslov"],
+  "lov-om-boligforhold-2022-342": ["lov om boligforhold", "boligforholdsloven"],
+  almenlejeloven:          ["almenlejeloven"],
+  almenboligloven:         ["almenboligloven"],
 };
 
 // ---------------------------------------------------------------------------
