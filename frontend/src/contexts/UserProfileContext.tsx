@@ -8,8 +8,15 @@ import React, {
     ReactNode,
     useCallback,
 } from "react";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+    type ApiKeyState,
+    type ApiKeyProvider,
+    type UserProfile as ApiUserProfile,
+    getUserProfile,
+    saveApiKey,
+    updateUserProfile,
+} from "@/app/lib/mikeApi";
 
 interface UserProfile {
     displayName: string | null;
@@ -19,8 +26,7 @@ interface UserProfile {
     creditsRemaining: number;
     tier: string;
     tabularModel: string;
-    claudeApiKey: string | null;
-    geminiApiKey: string | null;
+    apiKeys: ApiKeyState;
 }
 
 interface UserProfileContextType {
@@ -33,7 +39,7 @@ interface UserProfileContextType {
         value: string,
     ) => Promise<boolean>;
     updateApiKey: (
-        provider: "claude" | "gemini",
+        provider: ApiKeyProvider,
         value: string | null,
     ) => Promise<boolean>;
     reloadProfile: () => Promise<void>;
@@ -44,77 +50,31 @@ const UserProfileContext = createContext<UserProfileContextType | undefined>(
     undefined,
 );
 
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-const MONTHLY_CREDIT_LIMIT = 999999; // temporarily unlimited
+const API_KEY_PROVIDERS: ApiKeyProvider[] = ["claude", "gemini", "openai"];
 
-async function getAccessToken(): Promise<string | null> {
-    const {
-        data: { session },
-    } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
-}
-
-async function apiFetch(
-    path: string,
-    method: string,
-    body?: Record<string, unknown>,
-): Promise<{ ok: boolean; data?: Record<string, unknown> }> {
-    const token = await getAccessToken();
-    if (!token) return { ok: false };
-    const res = await fetch(`${API_BASE}${path}`, {
-        method,
-        headers: {
-            Authorization: `Bearer ${token}`,
-            ...(body ? { "Content-Type": "application/json" } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    if (!res.ok) return { ok: false };
-    const data = await res.json();
-    return { ok: true, data };
-}
-
-function mapProfileRow(data: Record<string, unknown>): UserProfile {
-    let creditsUsed = (data.message_credits_used as number) ?? 0;
-    let resetDate = (data.credits_reset_date as string) ?? "";
-    let creditsRemaining = MONTHLY_CREDIT_LIMIT - creditsUsed;
-
-    if (resetDate && new Date() > new Date(resetDate)) {
-        const newResetDate = new Date();
-        newResetDate.setDate(newResetDate.getDate() + 30);
-        resetDate = newResetDate.toISOString();
-        creditsUsed = 0;
-        creditsRemaining = MONTHLY_CREDIT_LIMIT;
-    }
-
+function emptyApiKeys(): ApiKeyState {
     return {
-        displayName: (data.display_name as string) ?? null,
-        organisation: (data.organisation as string) ?? null,
-        messageCreditsUsed: creditsUsed,
-        creditsResetDate: resetDate,
-        creditsRemaining,
-        tier: (data.tier as string) || "Free",
-        tabularModel:
-            (data.tabular_model as string) || "gemini-3-flash-preview",
-        claudeApiKey: (data.claude_api_key as string) ?? null,
-        geminiApiKey: (data.gemini_api_key as string) ?? null,
+        claude: { configured: false, source: null },
+        gemini: { configured: false, source: null },
+        openai: { configured: false, source: null },
     };
 }
 
-function fallbackProfile(): UserProfile {
-    const futureResetDate = new Date();
-    futureResetDate.setDate(futureResetDate.getDate() + 30);
+function toProfile(data: ApiUserProfile): UserProfile {
+    const { apiKeyStatus, ...profile } = data;
+    const apiKeys = emptyApiKeys();
+    for (const provider of API_KEY_PROVIDERS) {
+        apiKeys[provider] = {
+            configured: !!apiKeyStatus[provider],
+            source:
+                apiKeyStatus.sources?.[provider] ??
+                (apiKeyStatus[provider] ? "user" : null),
+        };
+    }
+
     return {
-        displayName: null,
-        organisation: null,
-        messageCreditsUsed: 0,
-        creditsResetDate: futureResetDate.toISOString(),
-        creditsRemaining: MONTHLY_CREDIT_LIMIT,
-        tier: "Free",
-        tabularModel: "gemini-3-flash-preview",
-        claudeApiKey: null,
-        geminiApiKey: null,
+        ...profile,
+        apiKeys,
     };
 }
 
@@ -125,27 +85,24 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
     const loadProfile = useCallback(async () => {
         try {
-            const result = await apiFetch("/user/profile", "GET");
-            if (result.ok && result.data) {
-                const mapped = mapProfileRow(result.data);
-
-                // Reset credits in background if expired
-                if (
-                    mapped.messageCreditsUsed === 0 &&
-                    result.data.message_credits_used !== 0
-                ) {
-                    apiFetch("/user/profile", "PATCH", {
-                        message_credits_used: 0,
-                        credits_reset_date: mapped.creditsResetDate,
-                    }).catch(() => {});
-                }
-
-                setProfile(mapped);
-            } else {
-                setProfile(fallbackProfile());
-            }
+            const profileData = await getUserProfile();
+            setProfile(toProfile(profileData));
         } catch {
-            setProfile(fallbackProfile());
+            // Calculate a default future reset date for fallback
+            const futureResetDate = new Date();
+            futureResetDate.setDate(futureResetDate.getDate() + 30);
+
+            // Set fallback profile data on exception
+            setProfile({
+                displayName: null,
+                organisation: null,
+                messageCreditsUsed: 0,
+                creditsResetDate: futureResetDate.toISOString(),
+                creditsRemaining: 999999, // temporarily unlimited
+                tier: "Free",
+                tabularModel: "gemini-3-flash-preview",
+                apiKeys: emptyApiKeys(),
+            });
         } finally {
             setLoading(false);
         }
@@ -161,88 +118,106 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         }
     }, [isAuthenticated, user, loadProfile]);
 
-    const patchProfile = useCallback(
-        async (
-            dbFields: Record<string, unknown>,
-            stateUpdate: Partial<UserProfile>,
-        ): Promise<boolean> => {
+    const updateDisplayName = useCallback(
+        async (displayName: string): Promise<boolean> => {
+            if (!user) return false;
             try {
-                const result = await apiFetch(
-                    "/user/profile",
-                    "PATCH",
-                    dbFields,
-                );
-                if (!result.ok) return false;
+                const updated = await updateUserProfile({ displayName });
                 setProfile((prev) =>
-                    prev ? { ...prev, ...stateUpdate } : null,
+                    prev ? { ...prev, ...toProfile(updated) } : null,
                 );
                 return true;
             } catch {
                 return false;
             }
         },
-        [],
-    );
-
-    const updateDisplayName = useCallback(
-        async (displayName: string): Promise<boolean> => {
-            return patchProfile({ display_name: displayName }, { displayName });
-        },
-        [patchProfile],
+        [user],
     );
 
     const updateOrganisation = useCallback(
         async (organisation: string): Promise<boolean> => {
-            return patchProfile({ organisation }, { organisation });
+            if (!user) return false;
+            try {
+                const updated = await updateUserProfile({ organisation });
+                setProfile((prev) =>
+                    prev ? { ...prev, ...toProfile(updated) } : null,
+                );
+                return true;
+            } catch {
+                return false;
+            }
         },
-        [patchProfile],
+        [user],
     );
 
     const updateModelPreference = useCallback(
-        async (
-            field: "tabularModel",
-            value: string,
-        ): Promise<boolean> => {
-            const dbField = field === "tabularModel" ? "tabular_model" : "";
-            if (!dbField) return false;
-            return patchProfile({ [dbField]: value }, { [field]: value });
+        async (field: "tabularModel", value: string): Promise<boolean> => {
+            if (!user) return false;
+            if (field !== "tabularModel") return false;
+            try {
+                const updated = await updateUserProfile({
+                    tabularModel: value,
+                });
+                setProfile((prev) =>
+                    prev ? { ...prev, ...toProfile(updated) } : null,
+                );
+                return true;
+            } catch {
+                return false;
+            }
         },
-        [patchProfile],
+        [user],
     );
 
     const updateApiKey = useCallback(
         async (
-            provider: "claude" | "gemini",
+            provider: ApiKeyProvider,
             value: string | null,
         ): Promise<boolean> => {
-            const dbField =
-                provider === "claude" ? "claude_api_key" : "gemini_api_key";
-            const stateField =
-                provider === "claude" ? "claudeApiKey" : "geminiApiKey";
+            if (!user) return false;
             const normalized = value?.trim() ? value.trim() : null;
-            return patchProfile(
-                { [dbField]: normalized },
-                { [stateField]: normalized },
-            );
+            try {
+                await saveApiKey(provider, normalized);
+                setProfile((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              apiKeys: {
+                                  ...prev.apiKeys,
+                                  [provider]: {
+                                      configured: !!normalized,
+                                      source: normalized ? "user" : null,
+                                  },
+                              },
+                          }
+                        : null,
+                );
+                return true;
+            } catch {
+                return false;
+            }
         },
-        [patchProfile],
+        [user],
     );
 
     const reloadProfile = useCallback(async () => {
-        await loadProfile();
-    }, [loadProfile]);
+        if (user) {
+            await loadProfile();
+        }
+    }, [user, loadProfile]);
 
     const incrementMessageCredits = useCallback(async (): Promise<boolean> => {
-        if (!profile || profile.creditsRemaining <= 0) return false;
-        const newCreditsUsed = profile.messageCreditsUsed + 1;
-        return patchProfile(
-            { message_credits_used: newCreditsUsed },
-            {
-                messageCreditsUsed: newCreditsUsed,
-                creditsRemaining: MONTHLY_CREDIT_LIMIT - newCreditsUsed,
-            },
-        );
-    }, [profile, patchProfile]);
+        if (!user || !profile) {
+            return false;
+        }
+
+        // Check if user has credits remaining
+        if (profile.creditsRemaining <= 0) {
+            return false;
+        }
+
+        return false;
+    }, [user, profile]);
 
     return (
         <UserProfileContext.Provider

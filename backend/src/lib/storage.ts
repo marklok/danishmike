@@ -21,6 +21,7 @@ function getClient(): S3Client {
   return new S3Client({
     region: "auto",
     endpoint: process.env.R2_ENDPOINT_URL!,
+    forcePathStyle: true,
     credentials: {
       accessKeyId: process.env.R2_ACCESS_KEY_ID!,
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
@@ -122,7 +123,9 @@ export function normalizeDownloadFilename(name: string): string {
 }
 
 export function sanitizeDispositionFilename(name: string): string {
-  return normalizeDownloadFilename(name).replace(/["\\]/g, "_");
+  return normalizeDownloadFilename(name)
+    .replace(/["\\]/g, "_")
+    .replace(/[^\x20-\x7E]/g, "_");
 }
 
 export function encodeRFC5987(str: string): string {
