@@ -177,6 +177,7 @@ export interface MikeCitationAnnotation {
   page: number | string;
   quote: string;
   url?: string | null;
+  synced_at?: string | null;    // ISO timestamp of last sync — shown as "as of" date in citation panel
 }
 
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";

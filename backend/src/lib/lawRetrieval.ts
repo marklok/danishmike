@@ -36,6 +36,7 @@ export interface LawChunkResult {
   chunk_level?: string;
   parent_id?: string | null;
   effective_date?: string;
+  synced_at?: string;           // updated_at from law_chunks — when this version was last synced
 
   // EUR-Lex backward-compat metadata blob
   metadata?: Record<string, unknown>;
@@ -194,7 +195,7 @@ async function exactCitationLookup(
   if (!parsed.sectionNumber) return [];
 
   const SELECT_COLS =
-    "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date";
+    "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date, updated_at";
 
   // Helper: base query for this section + law
   const baseQ = () => {
@@ -274,7 +275,7 @@ async function exactCitationLookup(
     let q2 = db
       .from("law_chunks")
       .select(
-        "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date",
+        "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date, updated_at",
       )
       .eq("section_number", alt)
       .eq("is_current", true);
@@ -340,7 +341,7 @@ async function ftsSearch(
   let ilikeQ = db
     .from("law_chunks")
     .select(
-      "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date",
+      "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date, updated_at",
     )
     .eq("is_current", true)
     .ilike("official_text", `%${searchWord}%`);
@@ -424,7 +425,7 @@ async function expandContext(
   const { data } = await db
     .from("law_chunks")
     .select(
-      "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date",
+      "id, law_id, law_title, short_names, canonical_citation, chapter_number, chapter_title, section_number, subsection, nr_litra, chunk_level, parent_id, official_text, source_url, effective_date, updated_at",
     )
     .in("id", [...expansionIds]);
 
@@ -618,5 +619,6 @@ function toResult(
     chunk_level: row.chunk_level as string,
     parent_id: row.parent_id as string | null,
     effective_date: row.effective_date as string,
+    synced_at: row.updated_at as string | undefined,
   };
 }

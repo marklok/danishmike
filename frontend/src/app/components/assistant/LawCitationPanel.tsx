@@ -111,7 +111,7 @@ export function LawCitationPanel({ citation, onClose }: Props) {
 
                 {/* Footer */}
                 {url && (
-                    <div className="border-t border-gray-200 px-5 py-3">
+                    <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between gap-4">
                         <a
                             href={url}
                             target="_blank"
@@ -121,6 +121,16 @@ export function LawCitationPanel({ citation, onClose }: Props) {
                             <ExternalLink className="h-3.5 w-3.5" />
                             Åbn på {source}
                         </a>
+                        {citation.synced_at && (
+                            <span className="text-xs text-gray-400 shrink-0">
+                                Synkroniseret{" "}
+                                {new Date(citation.synced_at).toLocaleDateString("da-DK", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                })}
+                            </span>
+                        )}
                     </div>
                 )}
             </div>

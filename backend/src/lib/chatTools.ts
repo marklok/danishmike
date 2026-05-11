@@ -3046,6 +3046,7 @@ export async function runLLMStream(params: {
                 page: 0,
                 quote: chunk.content,
                 url: chunk.url ?? null,
+                synced_at: chunk.synced_at ?? null,
             });
         }
     }
