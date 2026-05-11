@@ -114,7 +114,7 @@ async function resolveByTitleSearch(name: string): Promise<ResolveResult | null>
   return null;
 }
 
-async function resolveLatestVersion(name: string): Promise<ResolveResult | null> {
+export async function resolveLatestVersion(name: string): Promise<ResolveResult | null> {
   const base = "https://retsinformation-api.dk/v1/lovgivning";
 
   // Strategy 1: /resolve?q={name} — works for laws with a popular_title.
@@ -386,9 +386,11 @@ function stkOfficialText(stk: Stk): string {
 export function chunkLaw(
   doc: LawDocument,
   labelForId: string,
+  /** If provided, used as law_id directly instead of makeLawId(labelForId). */
+  lawIdOverride?: string,
 ): LawChunkRow[] {
   const rows: LawChunkRow[] = [];
-  const lawId = makeLawId(labelForId);
+  const lawId = lawIdOverride ?? makeLawId(labelForId);
   const shortNames = LAW_ACRONYMS[lawId] ?? [labelForId];
   const canonicalCitation = doc.short_name || `${doc.document_type} nr ${doc.number} af ${doc.year}`;
 

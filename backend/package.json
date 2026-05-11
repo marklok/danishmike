@@ -11,6 +11,7 @@
     "start": "node dist/index.js",
     "sync:retsinformation": "tsx src/ingestion/sync.ts",
     "sync:eurlex": "tsx src/ingestion/sync-eurlex.ts",
+    "sync:tenancy-laws": "tsx src/ingestion/sync-tenancy-laws.ts",
     "test": "vitest run"
   },
   "dependencies": {
