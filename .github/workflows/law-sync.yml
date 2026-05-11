@@ -1,0 +1,30 @@
+name: Weekly law sync
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"  # Every Sunday at 02:00 UTC
+  workflow_dispatch:      # Also triggerable manually from GitHub Actions UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30   # Full sync of ~50 laws takes ~5-10 min; fail loud if hung
+
+    steps:
+      - name: Trigger sync
+        run: |
+          echo "Triggering law sync at $(date -u)"
+          response=$(curl -s -o /tmp/sync_response.json -w "%{http_code}" \
+            -X POST "${{ secrets.BACKEND_URL }}/admin/sync" \
+            -H "x-admin-secret: ${{ secrets.SYNC_ADMIN_SECRET }}" \
+            --max-time 10)
+
+          echo "HTTP status: $response"
+          echo "Response: $(cat /tmp/sync_response.json)"
+
+          if [ "$response" != "200" ]; then
+            echo "::error::Sync trigger failed with HTTP $response"
+            exit 1
+          fi
+
+          echo "Sync started successfully — check server logs or await failure email."
