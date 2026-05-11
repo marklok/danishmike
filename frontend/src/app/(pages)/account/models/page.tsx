@@ -116,6 +116,38 @@ export default function ModelsAndApiKeysPage() {
                     ))}
                 </div>
             </div>
+
+            {/* Danish Law Retrieval */}
+            <div className="py-6 border-t border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                    <h2 className="text-2xl font-medium font-serif">
+                        Danish Law Retrieval
+                    </h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-4 max-w-xl">
+                    To retrieve relevant Danish legislation and EU regulations
+                    automatically during chats, provide an OpenAI API key. This
+                    key is used only for text embeddings (not chat) and costs
+                    less than $0.01 per 1,000 queries.
+                </p>
+                <div className="max-w-xl">
+                    <ApiKeyField
+                        label="OpenAI Embeddings Key"
+                        placeholder="sk-…"
+                        hasSavedKey={
+                            !!profile?.apiKeys["openai_embeddings"].configured
+                        }
+                        isServerConfigured={
+                            profile?.apiKeys["openai_embeddings"].source ===
+                            "env"
+                        }
+                        onSave={(value) =>
+                            updateApiKey("openai_embeddings", value.trim() || null)
+                        }
+                        onRemove={() => updateApiKey("openai_embeddings", null)}
+                    />
+                </div>
+            </div>
         </div>
     );
 }

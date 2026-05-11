@@ -176,6 +176,7 @@ export interface MikeCitationAnnotation {
   filename: string;
   page: number | string;
   quote: string;
+  url?: string | null;
 }
 
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";

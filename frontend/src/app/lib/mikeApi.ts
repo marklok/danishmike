@@ -124,7 +124,7 @@ export async function updateUserProfile(payload: {
     });
 }
 
-export type ApiKeyProvider = "claude" | "gemini" | "openai";
+export type ApiKeyProvider = "claude" | "gemini" | "openai" | "openai_embeddings";
 export type ApiKeySource = "user" | "env" | null;
 export type ApiKeyState = Record<
     ApiKeyProvider,

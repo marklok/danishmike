@@ -19,16 +19,11 @@ function lawSourceLabel(c: MikeCitationAnnotation): string {
 }
 
 function lawUrl(c: MikeCitationAnnotation): string | null {
-    // The quote often contains a URL or we can build one from the doc_id.
-    // For retsinformation, the URL is embedded in the metadata that the
-    // model may or may not include in the quote. We return null if we
-    // can't determine a URL — the panel will hide the link.
-    if (c.doc_id === "retsinformation") {
-        return "https://www.retsinformation.dk";
-    }
-    if (c.doc_id === "eurlex") {
-        return "https://eur-lex.europa.eu";
-    }
+    // Use the deep-link URL stored in the citation (from chunk metadata).
+    // Fall back to the homepage if not available.
+    if (c.url) return c.url;
+    if (c.doc_id === "retsinformation") return "https://www.retsinformation.dk";
+    if (c.doc_id === "eurlex") return "https://eur-lex.europa.eu";
     return null;
 }
 
