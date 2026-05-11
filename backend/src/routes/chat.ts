@@ -14,6 +14,7 @@ import { completeText } from "../lib/llm";
 import { getUserApiKeys, getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { retrieveDanishLaw, formatLawContext } from "../lib/lawRetrieval";
+import { getUserEmbeddingsKey } from "../lib/userApiKeys";
 
 export const chatRouter = Router();
 
@@ -533,10 +534,12 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     );
     // Retrieve relevant Danish law context based on the latest user message.
     let lawContextExtra: string | undefined;
+    let retrievedLawChunks: import("../lib/lawRetrieval").LawChunkResult[] = [];
     if (lastUser?.content) {
         try {
-            const lawChunks = await retrieveDanishLaw(lastUser.content);
-            lawContextExtra = formatLawContext(lawChunks) ?? undefined;
+            const embeddingsKey = await getUserEmbeddingsKey(userId, db);
+            retrievedLawChunks = await retrieveDanishLaw(lastUser.content, 10, embeddingsKey);
+            lawContextExtra = formatLawContext(retrievedLawChunks) ?? undefined;
         } catch (err) {
             console.error("[chat/stream] law retrieval failed:", err);
         }
@@ -577,6 +580,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
             model,
             apiKeys,
             projectId: resolvedProjectId,
+            lawChunks: retrievedLawChunks,
         });
 
         devLog("[chat/stream] LLM stream finished", {

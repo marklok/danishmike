@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { startSyncScheduler, runFullSync } from "./ingestion/scheduler";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -121,6 +122,23 @@ app.use("/download", downloadsRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
+// Admin: trigger a full law sync immediately.
+// Secured by a static token in SYNC_ADMIN_SECRET env var.
+// Usage: curl -X POST http://localhost:3001/admin/sync -H "x-admin-secret: <secret>"
+app.post("/admin/sync", (req, res) => {
+  const secret = process.env.SYNC_ADMIN_SECRET;
+  if (!secret || req.headers["x-admin-secret"] !== secret) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  // Fire-and-forget — respond immediately so the HTTP connection doesn't hang
+  runFullSync().catch((err) =>
+    console.error("[admin/sync] Unhandled error:", err),
+  );
+  res.json({ ok: true, message: "Sync started — check server logs" });
+});
+
 app.listen(PORT, () => {
   console.log(`Mike backend running on port ${PORT}`);
+  startSyncScheduler();
 });

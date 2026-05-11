@@ -2,12 +2,16 @@
   "name": "mike-backend",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "sync:retsinformation": "tsx src/ingestion/sync.ts",
-    "sync:eurlex": "tsx src/ingestion/sync-eurlex.ts"
+    "sync:eurlex": "tsx src/ingestion/sync-eurlex.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
@@ -27,6 +31,7 @@
     "libreoffice-convert": "^1.6.0",
     "mammoth": "^1.9.0",
     "multer": "^1.4.5-lts.2",
+    "node-cron": "^4.2.1",
     "openai": "^6.36.0",
     "pdfjs-dist": "^4.10.38",
     "resend": "^4.5.1"
@@ -36,9 +41,11 @@
     "@types/express": "^4.17.21",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.14.1",
+    "@types/node-cron": "^3.0.11",
     "prettier": "^3.8.1",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^2.1.9"
   },
   "license": "AGPL-3.0-only"
 }

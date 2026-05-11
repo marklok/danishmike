@@ -14,6 +14,7 @@ import {
 import { getUserApiKeys } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { retrieveDanishLaw, formatLawContext } from "../lib/lawRetrieval";
+import { getUserEmbeddingsKey } from "../lib/userApiKeys";
 
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
@@ -125,10 +126,12 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
     // the broader project doc list.
     // Retrieve relevant Danish law context based on the latest user message.
     let systemPromptExtra = PROJECT_SYSTEM_PROMPT_EXTRA;
+    let retrievedLawChunks: import("../lib/lawRetrieval").LawChunkResult[] = [];
     if (lastUser?.content) {
         try {
-            const lawChunks = await retrieveDanishLaw(lastUser.content);
-            const lawBlock = formatLawContext(lawChunks);
+            const embeddingsKey = await getUserEmbeddingsKey(userId, db);
+            retrievedLawChunks = await retrieveDanishLaw(lastUser.content, 10, embeddingsKey);
+            const lawBlock = formatLawContext(retrievedLawChunks);
             if (lawBlock) systemPromptExtra += `\n\n${lawBlock}`;
         } catch (err) {
             console.error("[project-chat/stream] law retrieval failed:", err);
@@ -181,6 +184,7 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
             model,
             apiKeys,
             projectId,
+            lawChunks: retrievedLawChunks,
         });
 
         const annotations = extractAnnotations(fullText, docIndex, events);

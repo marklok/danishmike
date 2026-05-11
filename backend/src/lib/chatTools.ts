@@ -133,6 +133,9 @@ When a user message begins with a [Workflow: <title> (id: <id>)] marker, the use
 DOCUMENT NAMING IN PROSE:
 The chat-local labels ("doc-0", "doc-1", "doc-N", …) are internal handles for tool calls and citation JSON ONLY. NEVER write them in your prose response or in any text the user reads — not in body text, not in headings, not in lists, not in tool-activity descriptions. The user does not know what "doc-0" means and seeing it is jarring. When referring to a document in prose, always use its filename (e.g. "the NDA draft" or "nda_v1.docx"). This rule applies to every word streamed back to the user; the only places "doc-N" identifiers are allowed are inside tool-call arguments and inside the <CITATIONS> JSON block's "doc_id" field.
 
+LANGUAGE:
+Always respond in Danish or English — whichever the user is using. NEVER respond in Norwegian, Swedish, or any other language, even if retrieved legal text or EU regulation content is written in a similar language.
+
 GENERAL GUIDANCE:
 - Be precise and professional
 - Cite the specific document and quote when making claims about document content
@@ -2731,6 +2734,12 @@ export async function runLLMStream(params: {
      * generated docs still get persisted, but as standalone documents.
      */
     projectId?: string | null;
+    /**
+     * Law chunks retrieved for this request. When provided, [law-N] refs
+     * in the response are automatically converted to citation annotations
+     * without requiring the model to output a <CITATIONS> block for them.
+     */
+    lawChunks?: import("./lawRetrieval").LawChunkResult[];
 }): Promise<{ fullText: string; events: AssistantEvent[] }> {
     const {
         apiMessages,
@@ -2746,6 +2755,7 @@ export async function runLLMStream(params: {
         model,
         apiKeys,
         projectId,
+        lawChunks,
     } = params;
     const activeTools = extraTools?.length
         ? [...TOOLS, ...WORKFLOW_TOOLS, ...extraTools]
@@ -2990,8 +3000,8 @@ export async function runLLMStream(params: {
 
     flushText();
 
-    // Parse and emit citations from <CITATIONS> block
-    const citations = buildCitations
+    // Parse document citations from <CITATIONS> block.
+    const docCitations = buildCitations
         ? buildCitations(fullText)
         : parseCitations(fullText).map((c) => {
               const docInfo = resolveDoc(c.doc_id, docIndex);
@@ -3006,12 +3016,72 @@ export async function runLLMStream(params: {
                   quote: c.quote,
               };
           });
+
+    // Auto-generate law citations from [law-N] refs in the response text.
+    // These refs are emitted by the model directly (no <CITATIONS> block needed),
+    // which means citations appear instantly after streaming ends.
+    const lawCitations: unknown[] = [];
+    if (lawChunks?.length) {
+        const lawRefRe = /\[law-(\d+)\]/g;
+        const seenLawRefs = new Set<number>();
+        let m: RegExpExecArray | null;
+        while ((m = lawRefRe.exec(fullText)) !== null) {
+            const n = parseInt(m[1], 10);
+            if (seenLawRefs.has(n) || n >= lawChunks.length) continue;
+            seenLawRefs.add(n);
+            const chunk = lawChunks[n];
+            const isEurlex = chunk.source === "eurlex";
+            // EUR-Lex chunks still use the legacy metadata blob; retsinformation
+            // chunks use the new typed fields from LawChunkResult.
+            const eurlexMeta = isEurlex ? (chunk.metadata ?? {}) : {};
+            lawCitations.push({
+                ref: 1000 + n,
+                doc_id: isEurlex ? "eurlex" : "retsinformation",
+                document_id: isEurlex ? "eurlex" : "retsinformation",
+                version_id: null,
+                version_number: null,
+                filename: isEurlex
+                    ? (eurlexMeta.forordning_titel as string ?? "EUR-Lex")
+                    : (chunk.law_title ?? chunk.canonical_citation ?? "Retsinformation"),
+                page: 0,
+                quote: chunk.content,
+                url: chunk.url ?? null,
+            });
+        }
+    }
+
+    const citations = [...docCitations, ...lawCitations];
+
+    // Append law citations to fullText's <CITATIONS> block so extractAnnotations
+    // (used for DB save) can persist them alongside document citations.
+    let finalFullText = fullText;
+    if (lawCitations.length) {
+        const closingTag = "</CITATIONS>";
+        const idx = finalFullText.lastIndexOf(closingTag);
+        const lawJson = lawCitations
+            .map((c) => JSON.stringify(c))
+            .join(",\n");
+        if (idx >= 0) {
+            // Insert before closing tag of existing block.
+            const before = finalFullText.slice(0, idx);
+            const after = finalFullText.slice(idx);
+            const needsComma = before.trimEnd().endsWith("]") ? "" : ",\n";
+            finalFullText =
+                before.trimEnd().slice(0, -1) + // remove trailing ]
+                needsComma + lawJson + "\n]" +
+                after;
+        } else {
+            // No <CITATIONS> block yet — create one.
+            finalFullText += `\n<CITATIONS>\n[${lawJson}]\n</CITATIONS>`;
+        }
+    }
+
     try {
         write(`data: ${JSON.stringify({ type: "citations", citations })}\n\n`);
         write("data: [DONE]\n\n");
     } catch { /* client may have disconnected — fullText is still returned for DB save */ }
 
-    return { fullText, events };
+    return { fullText: finalFullText, events };
 }
 
 // ---------------------------------------------------------------------------

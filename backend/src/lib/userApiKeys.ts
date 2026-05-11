@@ -3,7 +3,7 @@ import { createServerSupabase } from "./supabase";
 import type { UserApiKeys } from "./llm";
 
 type Db = ReturnType<typeof createServerSupabase>;
-export type ApiKeyProvider = "claude" | "gemini" | "openai";
+export type ApiKeyProvider = "claude" | "gemini" | "openai" | "openai_embeddings";
 export type ApiKeySource = "user" | "env" | null;
 export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
     sources: Record<ApiKeyProvider, ApiKeySource>;
@@ -16,7 +16,10 @@ type EncryptedKeyRow = {
     auth_tag: string;
 };
 
+// Chat providers — used for model selection and chat completions.
 const PROVIDERS: ApiKeyProvider[] = ["claude", "gemini", "openai"];
+// All storable providers including non-chat ones.
+const ALL_PROVIDERS: ApiKeyProvider[] = ["claude", "gemini", "openai", "openai_embeddings"];
 
 function envApiKey(provider: ApiKeyProvider): string | null {
     if (provider === "claude") {
@@ -84,7 +87,7 @@ function decrypt(row: EncryptedKeyRow): string | null {
 }
 
 function isProvider(value: string): value is ApiKeyProvider {
-    return (PROVIDERS as string[]).includes(value);
+    return (ALL_PROVIDERS as string[]).includes(value);
 }
 
 export function normalizeApiKeyProvider(value: string): ApiKeyProvider | null {
@@ -99,10 +102,12 @@ export async function getUserApiKeyStatus(
         claude: false,
         gemini: false,
         openai: false,
+        openai_embeddings: false,
         sources: {
             claude: null,
             gemini: null,
             openai: null,
+            openai_embeddings: null,
         },
     };
 
@@ -111,6 +116,12 @@ export async function getUserApiKeyStatus(
             status[provider] = true;
             status.sources[provider] = "env";
         }
+    }
+
+    // openai_embeddings can also fall back to the server OPENAI_API_KEY
+    if (process.env.OPENAI_API_KEY?.trim()) {
+        status.openai_embeddings = true;
+        status.sources.openai_embeddings = "env";
     }
 
     const { data, error } = await db
@@ -128,6 +139,23 @@ export async function getUserApiKeyStatus(
     }
 
     return status;
+}
+
+export async function getUserEmbeddingsKey(
+    userId: string,
+    db: Db = createServerSupabase(),
+): Promise<string | null> {
+    // Prefer user-stored key, fall back to server env var.
+    const { data, error } = await db
+        .from("user_api_keys")
+        .select("provider, encrypted_key, iv, auth_tag")
+        .eq("user_id", userId)
+        .eq("provider", "openai_embeddings")
+        .maybeSingle();
+    if (!error && data) {
+        return decrypt(data as EncryptedKeyRow);
+    }
+    return process.env.OPENAI_API_KEY?.trim() || null;
 }
 
 export async function getUserApiKeys(
@@ -148,9 +176,10 @@ export async function getUserApiKeys(
 
     for (const row of (data ?? []) as EncryptedKeyRow[]) {
         const provider = normalizeApiKeyProvider(row.provider);
-        if (!provider) continue;
-        if (apiKeys[provider]?.trim()) continue;
-        apiKeys[provider] = decrypt(row);
+        // Only populate chat providers — openai_embeddings is not a chat key.
+        if (!provider || !(PROVIDERS as string[]).includes(provider)) continue;
+        if (apiKeys[provider as keyof UserApiKeys]?.trim()) continue;
+        apiKeys[provider as keyof UserApiKeys] = decrypt(row);
     }
 
     return apiKeys;
