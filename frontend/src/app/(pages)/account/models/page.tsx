@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 import type { ApiKeyState } from "@/app/lib/mikeApi";
+import { getPlatformUsage, type PlatformUsage } from "@/app/lib/mikeApi";
 import { MODELS } from "@/app/components/assistant/ModelToggle";
 import {
     isModelAvailable,
@@ -21,49 +22,107 @@ import {
     providerLabel,
 } from "@/app/lib/modelAvailability";
 
-const API_KEY_FIELDS = [
-    {
-        provider: "claude",
-        label: "Anthropic (Claude) API Key",
-        placeholder: "sk-ant-…",
-    },
-    {
-        provider: "gemini",
-        label: "Google (Gemini) API Key",
-        placeholder: "AI…",
-    },
-    {
-        provider: "openai",
-        label: "OpenAI API Key",
-        placeholder: "sk-…",
-    },
-] as const;
-
 export default function ModelsAndApiKeysPage() {
     const { profile, updateModelPreference, updateApiKey } = useUserProfile();
+    const [platformUsage, setPlatformUsage] = useState<PlatformUsage | null>(null);
+
+    useEffect(() => {
+        getPlatformUsage().then(setPlatformUsage).catch(() => {});
+    }, []);
+
+    const claudeSource = profile?.apiKeys["claude"]?.source;
+    const hasOwnClaudeKey = claudeSource === "user";
+    const usingPlatformKey = claudeSource === "env" && !hasOwnClaudeKey;
+    const creditsRemaining = platformUsage?.remaining ?? null;
+    const creditsExhausted = creditsRemaining !== null && creditsRemaining <= 0;
 
     return (
         <div className="space-y-4">
-            {/* Model Preferences */}
+            {/* API Keys */}
             <div className="pb-6">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-2">
                     <h2 className="text-2xl font-medium font-serif">
-                        Model Preferences
+                        API-nøgle
                     </h2>
                 </div>
-                <div className="space-y-4 max-w-md">
+                <p className="text-sm text-gray-500 mb-6 max-w-xl">
+                    Mike bruger Anthropic's Claude til at analysere dokumenter
+                    og besvare juridiske spørgsmål.
+                </p>
+
+                <div className="max-w-xl">
+                    <ApiKeyField
+                        label="Anthropic (Claude) API-nøgle"
+                        placeholder="sk-ant-…"
+                        hasSavedKey={!!profile?.apiKeys["claude"]?.configured}
+                        locked={usingPlatformKey && !creditsExhausted}
+                        lockedMessage={
+                            creditsRemaining !== null
+                                ? `Du har ${creditsRemaining} gratis ${creditsRemaining === 1 ? "besked" : "beskeder"} tilbage denne måned. Du kan tilføje din egen API-nøgle her, når de er brugt.`
+                                : "Du har gratis beskeder inkluderet. Du kan tilføje din egen API-nøgle her, når de er brugt."
+                        }
+                        unlockedMessage={
+                            creditsExhausted
+                                ? "Dine gratis beskeder er brugt op. Tilføj din Anthropic API-nøgle nedenfor for at fortsætte."
+                                : undefined
+                        }
+                        onSave={(value) =>
+                            updateApiKey("claude", value.trim() || null)
+                        }
+                        onRemove={() => updateApiKey("claude", null)}
+                    />
+                </div>
+            </div>
+
+            {/* Advanced — only show when user has own key or is a power user */}
+            {hasOwnClaudeKey && (
+                <div className="py-6 border-t border-gray-100 space-y-6">
                     <div>
-                        <label className="text-sm text-gray-600 block mb-2">
-                            Tabular review model
+                        <h2 className="text-2xl font-medium font-serif mb-2">
+                            Avancerede indstillinger
+                        </h2>
+                        <p className="text-sm text-gray-500 mb-6 max-w-xl">
+                            Tilføj nøgler til andre AI-udbydere og tilpas
+                            modelvalg.
+                        </p>
+                    </div>
+
+                    {/* Other providers */}
+                    <div className="space-y-4 max-w-xl">
+                        <ApiKeyField
+                            label="Google (Gemini) API-nøgle"
+                            placeholder="AI…"
+                            hasSavedKey={!!profile?.apiKeys["gemini"]?.configured}
+                            locked={profile?.apiKeys["gemini"]?.source === "env"}
+                            onSave={(value) =>
+                                updateApiKey("gemini", value.trim() || null)
+                            }
+                            onRemove={() => updateApiKey("gemini", null)}
+                        />
+                        <ApiKeyField
+                            label="OpenAI API-nøgle"
+                            placeholder="sk-…"
+                            hasSavedKey={!!profile?.apiKeys["openai"]?.configured}
+                            locked={profile?.apiKeys["openai"]?.source === "env"}
+                            onSave={(value) =>
+                                updateApiKey("openai", value.trim() || null)
+                            }
+                            onRemove={() => updateApiKey("openai", null)}
+                        />
+                    </div>
+
+                    {/* Model preferences */}
+                    <div className="max-w-md">
+                        <label className="text-sm text-gray-600 block mb-1">
+                            Model til tabelgennemgang
                         </label>
                         <p className="text-xs text-gray-400 mb-2">
-                            We recommend using a smaller model for tabular
-                            reviews to reduce token costs.
+                            Vi anbefaler en mindre model til tabelgennemgang for
+                            at reducere omkostninger.
                         </p>
                         <TabularModelDropdown
                             value={
-                                profile?.tabularModel ??
-                                "gemini-3-flash-preview"
+                                profile?.tabularModel ?? "claude-sonnet-4-6"
                             }
                             apiKeys={profile?.apiKeys}
                             onChange={(id) =>
@@ -72,82 +131,7 @@ export default function ModelsAndApiKeysPage() {
                         />
                     </div>
                 </div>
-            </div>
-
-            {/* API Keys */}
-            <div className="py-6">
-                <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-2xl font-medium font-serif">
-                        API Keys
-                    </h2>
-                </div>
-                <p className="text-sm text-gray-500 mb-4 max-w-xl">
-                    You must provide your own API keys for the app to work or
-                    add your API keys into the .env file if you are running your
-                    own instance of Mike.
-                </p>
-                <p className="text-xs text-gray-400 mb-4 max-w-xl">
-                    Title generation automatically routes to the cheapest
-                    configured provider model.
-                </p>
-                <div className="space-y-4 max-w-xl">
-                    {API_KEY_FIELDS.map((field) => (
-                        <ApiKeyField
-                            key={field.provider}
-                            label={field.label}
-                            placeholder={field.placeholder}
-                            hasSavedKey={
-                                !!profile?.apiKeys[field.provider].configured
-                            }
-                            isServerConfigured={
-                                profile?.apiKeys[field.provider].source ===
-                                "env"
-                            }
-                            onSave={(value) =>
-                                updateApiKey(
-                                    field.provider,
-                                    value.trim() || null,
-                                )
-                            }
-                            onRemove={() =>
-                                updateApiKey(field.provider, null)
-                            }
-                        />
-                    ))}
-                </div>
-            </div>
-
-            {/* Danish Law Retrieval */}
-            <div className="py-6 border-t border-gray-100">
-                <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-2xl font-medium font-serif">
-                        Danish Law Retrieval
-                    </h2>
-                </div>
-                <p className="text-sm text-gray-500 mb-4 max-w-xl">
-                    To retrieve relevant Danish legislation and EU regulations
-                    automatically during chats, provide an OpenAI API key. This
-                    key is used only for text embeddings (not chat) and costs
-                    less than $0.01 per 1,000 queries.
-                </p>
-                <div className="max-w-xl">
-                    <ApiKeyField
-                        label="OpenAI Embeddings Key"
-                        placeholder="sk-…"
-                        hasSavedKey={
-                            !!profile?.apiKeys["openai_embeddings"].configured
-                        }
-                        isServerConfigured={
-                            profile?.apiKeys["openai_embeddings"].source ===
-                            "env"
-                        }
-                        onSave={(value) =>
-                            updateApiKey("openai_embeddings", value.trim() || null)
-                        }
-                        onRemove={() => updateApiKey("openai_embeddings", null)}
-                    />
-                </div>
-            </div>
+            )}
         </div>
     );
 }
@@ -246,14 +230,21 @@ function ApiKeyField({
     label,
     placeholder,
     hasSavedKey,
-    isServerConfigured,
+    locked = false,
+    lockedMessage,
+    unlockedMessage,
     onSave,
     onRemove,
 }: {
     label: string;
     placeholder: string;
     hasSavedKey: boolean;
-    isServerConfigured: boolean;
+    /** When true, the input is disabled and lockedMessage is shown. */
+    locked?: boolean;
+    /** Message shown in the info box while locked. */
+    lockedMessage?: string;
+    /** Message shown above the input when unlocked (e.g. credits exhausted). */
+    unlockedMessage?: string;
     onSave: (value: string) => Promise<boolean>;
     onRemove: () => Promise<boolean>;
 }) {
@@ -277,7 +268,7 @@ function ApiKeyField({
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
         } else {
-            alert(`Failed to save ${label}.`);
+            alert(`Kunne ikke gemme ${label}.`);
         }
     };
 
@@ -285,89 +276,90 @@ function ApiKeyField({
         setIsSaving(true);
         const ok = await onRemove();
         setIsSaving(false);
-        if (!ok) alert(`Failed to remove ${label}.`);
+        if (!ok) alert(`Kunne ikke fjerne ${label}.`);
     };
 
     return (
         <div>
             <label className="text-sm text-gray-600 block mb-2">{label}</label>
-            {isServerConfigured && (
-                <div className="mb-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
-                    <p className="text-xs text-blue-800">
-                        A server .env key is configured for this provider.
-                        Browser API-key edits are disabled.
-                    </p>
+
+            {/* Locked state: show info message, hide input */}
+            {locked && lockedMessage && (
+                <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5">
+                    <p className="text-sm text-gray-600">{lockedMessage}</p>
+                </div>
+            )}
+
+            {/* Unlocked with a notice (e.g. credits exhausted) */}
+            {!locked && unlockedMessage && (
+                <div className="mb-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2.5">
+                    <p className="text-sm text-amber-800">{unlockedMessage}</p>
+                </div>
+            )}
+
+            {/* Input — only shown when not locked */}
+            {!locked && (
+                <>
                     {hasSavedKey && (
-                        <p className="mt-1 text-xs text-blue-800">
-                            The server key will be used for this provider.
+                        <p className="text-xs text-gray-500 mb-2">
+                            En nøgle er gemt. Indsæt en ny for at erstatte den.
                         </p>
                     )}
-                </div>
-            )}
-            {hasSavedKey && !isServerConfigured && (
-                <p className="text-xs text-gray-500 mb-2">
-                    A key is saved. Paste a new key to replace it.
-                </p>
-            )}
-            <div className="flex gap-2">
-                <div className="relative flex-1">
-                    <Input
-                        type={reveal ? "text" : "password"}
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                        placeholder={
-                            isServerConfigured
-                                ? "Server .env key configured"
-                                : hasSavedKey
-                                  ? "Saved key hidden"
-                                  : placeholder
-                        }
-                        className="pr-10"
-                        autoComplete="off"
-                        spellCheck={false}
-                        disabled={isServerConfigured}
-                    />
-                    <button
-                        type="button"
-                        onClick={() => setReveal((r) => !r)}
-                        disabled={isServerConfigured}
-                        className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
-                        aria-label={reveal ? "Hide key" : "Show key"}
-                    >
-                        {reveal ? (
-                            <EyeOff className="h-4 w-4" />
-                        ) : (
-                            <Eye className="h-4 w-4" />
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <Input
+                                type={reveal ? "text" : "password"}
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                                placeholder={
+                                    hasSavedKey ? "Gemt nøgle skjult" : placeholder
+                                }
+                                className="pr-10"
+                                autoComplete="off"
+                                spellCheck={false}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setReveal((r) => !r)}
+                                className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600"
+                                aria-label={reveal ? "Skjul nøgle" : "Vis nøgle"}
+                            >
+                                {reveal ? (
+                                    <EyeOff className="h-4 w-4" />
+                                ) : (
+                                    <Eye className="h-4 w-4" />
+                                )}
+                            </button>
+                        </div>
+                        <Button
+                            onClick={handleSave}
+                            disabled={isSaving || !dirty || saved}
+                            className="min-w-[80px] transition-all bg-black hover:bg-gray-900 text-white"
+                        >
+                            {isSaving ? (
+                                "Gemmer..."
+                            ) : saved ? (
+                                <>
+                                    <Check className="h-4 w-3" />
+                                    Gemt
+                                </>
+                            ) : (
+                                "Gem"
+                            )}
+                        </Button>
+                        {hasSavedKey && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleRemove}
+                                disabled={isSaving}
+                            >
+                                Fjern
+                            </Button>
                         )}
-                    </button>
-                </div>
-                <Button
-                    onClick={handleSave}
-                    disabled={isServerConfigured || isSaving || !dirty || saved}
-                    className="min-w-[80px] transition-all bg-black hover:bg-gray-900 text-white"
-                >
-                    {isSaving ? (
-                        "Saving..."
-                    ) : saved ? (
-                        <>
-                            <Check className="h-4 w-3" />
-                            Saved
-                        </>
-                    ) : (
-                        "Save"
-                    )}
-                </Button>
-                {hasSavedKey && !isServerConfigured && (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleRemove}
-                        disabled={isSaving}
-                    >
-                        Remove
-                    </Button>
-                )}
-            </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
