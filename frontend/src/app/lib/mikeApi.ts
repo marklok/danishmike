@@ -153,6 +153,22 @@ export async function getPlatformUsage(): Promise<PlatformUsage> {
     return apiRequest<PlatformUsage>("/user/platform-usage");
 }
 
+export type LegislationEntry = {
+    law_id: string;
+    law_title: string;
+    canonical_citation: string;
+    effective_date: string;
+    year: number;
+    number: number;
+    synced_at: string;
+    chunk_count: number;
+};
+
+export async function getAvailableLegislation(): Promise<LegislationEntry[]> {
+    const { laws } = await apiRequest<{ laws: LegislationEntry[] }>("/user/legislation");
+    return laws;
+}
+
 export async function saveApiKey(
     provider: ApiKeyProvider,
     apiKey: string | null,

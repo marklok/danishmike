@@ -21,7 +21,7 @@ import {
     PLATFORM_FALLBACK_MODEL,
 } from "../lib/platformUsage";
 import { checkProjectAccess } from "../lib/access";
-import { retrieveDanishLaw, formatLawContext } from "../lib/lawRetrieval";
+import { retrieveDanishLaw, formatLawContext, getLawHintWarning } from "../lib/lawRetrieval";
 import { getUserEmbeddingsKey } from "../lib/userApiKeys";
 
 export const chatRouter = Router();
@@ -547,7 +547,9 @@ chatRouter.post("/", requireAuth, async (req, res) => {
         try {
             const embeddingsKey = await getUserEmbeddingsKey(userId, db);
             retrievedLawChunks = await retrieveDanishLaw(lastUser.content, 10, embeddingsKey);
-            lawContextExtra = formatLawContext(retrievedLawChunks) ?? undefined;
+            const lawBlock = formatLawContext(retrievedLawChunks);
+            const lawWarning = getLawHintWarning(lastUser.content, retrievedLawChunks);
+            lawContextExtra = (lawBlock ?? "") + (lawWarning ?? "") || undefined;
         } catch (err) {
             console.error("[chat/stream] law retrieval failed:", err);
         }

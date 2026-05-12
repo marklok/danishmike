@@ -276,6 +276,54 @@ userRouter.get("/platform-usage", requireAuth, async (_req, res) => {
   });
 });
 
+// GET /user/legislation — list all laws currently indexed in law_chunks
+userRouter.get("/legislation", requireAuth, async (_req, res) => {
+  const db = createServerSupabase();
+  const { data, error } = await db
+    .from("law_chunks")
+    .select("law_id, law_title, canonical_citation, effective_date, year, number, updated_at")
+    .eq("is_current", true)
+    .order("law_title", { ascending: true });
+
+  if (error) return void res.status(500).json({ detail: error.message });
+
+  // Deduplicate by law_id, keeping the most-recently-synced row per law
+  const byId = new Map<string, {
+    law_id: string;
+    law_title: string;
+    canonical_citation: string;
+    effective_date: string;
+    year: number;
+    number: number;
+    synced_at: string;
+    chunk_count: number;
+  }>();
+
+  for (const row of data ?? []) {
+    const existing = byId.get(row.law_id);
+    if (!existing) {
+      byId.set(row.law_id, {
+        law_id: row.law_id,
+        law_title: row.law_title,
+        canonical_citation: row.canonical_citation,
+        effective_date: row.effective_date,
+        year: row.year,
+        number: row.number,
+        synced_at: row.updated_at,
+        chunk_count: 1,
+      });
+    } else {
+      existing.chunk_count++;
+      if (row.updated_at > existing.synced_at) existing.synced_at = row.updated_at;
+    }
+  }
+
+  const laws = [...byId.values()].sort((a, b) =>
+    a.law_title.localeCompare(b.law_title, "da"),
+  );
+  res.json({ laws });
+});
+
 // DELETE /user/account
 userRouter.delete("/account", requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;

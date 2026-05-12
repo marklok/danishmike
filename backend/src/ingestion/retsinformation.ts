@@ -30,6 +30,11 @@ const LAW_ACRONYMS: Record<string, string[]> = {
   tinglysningsloven:       ["tinglysningsloven", "TL"],
   erhvervslejeloven:       ["erhvervslejeloven", "ELL"],
   inkorporeringsloven:     ["inkorporeringsloven", "EMRK"],
+  arveloven:               ["arveloven"],
+  ferieloven:              ["ferieloven"],
+  arbejdsmiljøloven:       ["arbejdsmiljøloven"],
+  forbrugeraftaleloven:    ["forbrugeraftaleloven"],
+  forsikringsaftaleloven:  ["forsikringsaftaleloven"],
   // Tenancy laws
   lejeloven:               ["lejeloven"],
   "lejeloven-2022-341":    ["lejeloven", "lov om leje 2022"],
@@ -58,9 +63,36 @@ type LawRef =
   | { name: string; label?: string };
 
 const DEFAULT_LAWS: LawRef[] = [
+  // Data & privacy
   { name: "databeskyttelsesloven" },
   { year: 2024, number: 1204, label: "nis2-implementeringsloven" },
+  // Contract & civil law
+  { name: "aftaleloven" },
+  { name: "købeloven" },
+  { name: "erstatningsansvarsloven" },
+  { name: "forbrugeraftaleloven" },
+  { name: "forsikringsaftaleloven" },
+  // Corporate & commercial
+  { name: "selskabsloven" },
+  { name: "hvidvaskloven" },
+  { name: "markedsføringsloven" },
+  { name: "konkursloven" },
+  { name: "tinglysningsloven" },
+  { name: "revisorloven" },
+  // Employment
   { name: "funktionærloven" },
+  { name: "ferieloven" },
+  { name: "arbejdsmiljøloven" },
+  // Criminal & procedural
+  { name: "straffeloven" },
+  { name: "retsplejeloven" },
+  // Family
+  { name: "arveloven" },
+  // Tenancy
+  { name: "lejeloven" },
+  { name: "erhvervslejeloven" },
+  { name: "almenlejeloven" },
+  { name: "almenboligloven" },
 ];
 
 // ---------------------------------------------------------------------------

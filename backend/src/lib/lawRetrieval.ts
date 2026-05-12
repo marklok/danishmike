@@ -554,6 +554,33 @@ export async function retrieveDanishLaw(
 }
 
 // ---------------------------------------------------------------------------
+// "Law hinted but not in database" warning
+//
+// Call this after retrieveDanishLaw. If the user's query references a specific
+// law (e.g. "aftaleloven § 36") but zero chunks from that law were found, we
+// add a warning so the model doesn't hallucinate instead of admitting ignorance.
+// ---------------------------------------------------------------------------
+
+export function getLawHintWarning(query: string, chunks: LawChunkResult[]): string | null {
+  const parsed = parseCitation(query);
+  if (!parsed.lawHint) return null;
+
+  const hasChunksForLaw = chunks.some(
+    (c) => c.source === "retsinformation" && c.law_id === parsed.lawHint,
+  );
+  if (hasChunksForLaw) return null;
+
+  // Make the law name human-readable (underscores → spaces)
+  const lawName = parsed.lawHint.replace(/_/g, " ");
+  return (
+    `\n\nLOV IKKE TILGÆNGELIG I DATABASEN: Brugerens spørgsmål refererer til "${lawName}", ` +
+    `men denne lov er endnu ikke indlæst i søgedatabasen. ` +
+    `Oplys venligst brugeren om dette. Du må IKKE besvare spørgsmålet ud fra generel juridisk viden — ` +
+    `fortæl i stedet, at "${lawName}" ikke er tilgængelig endnu, og at brugeren kan slå paragraffen op direkte på retsinformation.dk.`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Format retrieved chunks into a system-prompt block for the LLM
 // ---------------------------------------------------------------------------
 
@@ -562,8 +589,13 @@ export function formatLawContext(chunks: LawChunkResult[]): string | null {
 
   const header =
     `RELEVANT DANSK LOVGIVNING OG EU-REGULERING:\n` +
-    `The following excerpts were retrieved directly from Retsinformation (Danish law) and EUR-Lex (EU regulations).\n` +
-    `Base your answer on these excerpts. Do NOT answer from general legal knowledge when excerpts are provided — always refer to the specific text below.\n\n` +
+    `The following excerpts were automatically retrieved from a database containing the full text of Danish legislation ` +
+    `(sourced from Retsinformation) and EU regulations (sourced from EUR-Lex).\n` +
+    `IMPORTANT: You have access to the COMPLETE text of all indexed Danish laws — the excerpts below are the most ` +
+    `relevant paragraphs for this specific query. If the user asks about a different paragraph, answer based on ` +
+    `the retrieved text and invite them to ask about the specific § they need. ` +
+    `Do NOT say you only have "a few provisions" or "limited access" — you have the full law available.\n` +
+    `Base your answer strictly on these excerpts. Do NOT answer from general legal knowledge when excerpts are provided.\n\n` +
     `CITATION RULES FOR LAW EXCERPTS:\n` +
     `When you reference a law excerpt in your response, cite it using its exact label (e.g. [law-0], [law-1]).\n` +
     `These labels become clickable citation links — do NOT include law citations in a <CITATIONS> block.\n` +
