@@ -28,7 +28,7 @@ export const MODELS: ModelOption[] = [
     { id: "gpt-5.4-mini", label: "GPT-5.4 Mini", group: "OpenAI" },
 ];
 
-export const DEFAULT_MODEL_ID = "gemini-3-flash-preview";
+export const DEFAULT_MODEL_ID = "claude-sonnet-4-6";
 
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 

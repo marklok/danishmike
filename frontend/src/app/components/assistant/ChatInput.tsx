@@ -70,6 +70,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [model, setModel] = useSelectedModel();
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
+    // Free-tier users (using the platform key) are locked to Claude Sonnet 4.6.
+    const usingPlatformKey = apiKeys?.claude?.source === "env";
+    const effectiveModel = usingPlatformKey ? "claude-sonnet-4-6" : model;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [docSelectorOpen, setDocSelectorOpen] = useState(false);
     const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
@@ -115,8 +118,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const handleSubmit = () => {
         const query = value.trim();
         if (!query || showStopButton) return;
-        if (apiKeys && !isModelAvailable(model, apiKeys)) {
-            setApiKeyModalProvider(getModelProvider(model));
+        if (apiKeys && !isModelAvailable(effectiveModel, apiKeys)) {
+            setApiKeyModalProvider(getModelProvider(effectiveModel));
             return;
         }
         setValue("");
@@ -137,7 +140,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             content: query,
             files: files.length > 0 ? files : undefined,
             workflow: wf ?? undefined,
-            model,
+            model: effectiveModel,
         });
     };
 
@@ -275,11 +278,20 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                         </div>
 
                         <div className="flex items-center gap-1">
-                            <ModelToggle
-                                value={model}
-                                onChange={setModel}
-                                apiKeys={apiKeys}
-                            />
+                            {usingPlatformKey ? (
+                                <span
+                                    className="flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm text-gray-400 cursor-default select-none"
+                                    title="Claude Sonnet 4.6 is included in your free plan"
+                                >
+                                    Claude Sonnet 4.6
+                                </span>
+                            ) : (
+                                <ModelToggle
+                                    value={effectiveModel}
+                                    onChange={setModel}
+                                    apiKeys={apiKeys}
+                                />
+                            )}
                             <button
                                 type="button"
                                 className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center cursor-pointer disabled:cursor-default disabled:from-neutral-600 disabled:to-black backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"

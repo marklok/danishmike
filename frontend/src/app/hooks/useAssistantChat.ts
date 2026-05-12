@@ -846,6 +846,9 @@ export function useAssistantChat({
                 void generateTitle(finalChatIdForTitle, titleParts.join("\n"));
             }
 
+            // Notify sidebar to refresh the platform usage counter.
+            window.dispatchEvent(new CustomEvent("mike:usage-updated"));
+
             return streamedChatId || null;
         } catch (error: unknown) {
             if (error instanceof Error && error.name === "AbortError") {

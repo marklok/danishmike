@@ -66,6 +66,14 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
     }, [user]);
 
     useEffect(() => {
+        const refresh = () => {
+            getPlatformUsage().then(setPlatformUsage).catch(() => {});
+        };
+        window.addEventListener("mike:usage-updated", refresh);
+        return () => window.removeEventListener("mike:usage-updated", refresh);
+    }, []);
+
+    useEffect(() => {
         if (!isOpen) setShouldAnimate(true);
     }, [isOpen]);
 
