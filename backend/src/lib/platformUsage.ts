@@ -61,23 +61,29 @@ export async function incrementPlatformUsage(
 }
 
 /**
- * Returns an effective claude API key for this request:
- *  - If the user supplied their own key → return it unchanged.
- *  - If the user is under the monthly limit → return the platform key.
- *  - If the user is at/over the limit → return null (caller should 402).
+ * Returns an effective claude API key for this request.
+ *
+ * `userHasOwnKey` must be true only when the user has a Claude key stored in
+ * their own account (sources.claude === "user" from getUserApiKeyStatus).
+ * Do NOT pass the env/platform key here — getUserApiKeys seeds every slot with
+ * the env value, so apiKeys.claude is always truthy even for free-tier users.
+ *
+ *  - userHasOwnKey=true  → use apiKeys.claude as-is, no budget tracking.
+ *  - userHasOwnKey=false → inject platform ANTHROPIC_API_KEY, check monthly limit.
+ *  - returns null         → over limit / platform key not configured → caller sends 402.
  */
 export async function resolveClaudeKey(
-    userClaudeKey: string | null | undefined,
+    userHasOwnKey: boolean,
     userId: string,
     db: SupabaseClient,
+    userKey: string | null | undefined,
 ): Promise<{ key: string; usingPlatform: boolean } | null> {
-    if (userClaudeKey) {
-        return { key: userClaudeKey, usingPlatform: false };
+    if (userHasOwnKey && userKey) {
+        return { key: userKey, usingPlatform: false };
     }
 
     const platformKey = process.env.ANTHROPIC_API_KEY;
     if (!platformKey) {
-        // Platform key not configured — can't sponsor.
         return null;
     }
 

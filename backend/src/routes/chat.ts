@@ -12,6 +12,7 @@ import {
 } from "../lib/chatTools";
 import { completeText } from "../lib/llm";
 import { getUserApiKeys, getUserModelSettings } from "../lib/userSettings";
+import { getUserApiKeyStatus } from "../lib/userApiKeys";
 import {
     resolveClaudeKey,
     incrementPlatformUsage,
@@ -569,10 +570,18 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
     const write = (line: string) => res.write(line);
 
-    const apiKeys = await getUserApiKeys(userId, db);
+    const [apiKeys, apiKeyStatus] = await Promise.all([
+        getUserApiKeys(userId, db),
+        getUserApiKeyStatus(userId, db),
+    ]);
+
+    // sources.claude === "user" means the user stored their own key in their account.
+    // The env/platform key is always present in apiKeys.claude, so we must check
+    // the source explicitly — otherwise every user looks like they have their own key.
+    const hasOwnClaudeKey = apiKeyStatus.sources?.claude === "user";
 
     // Resolve which Claude key to use: user's own key, or platform-sponsored key.
-    const resolved = await resolveClaudeKey(apiKeys.claude, userId, db);
+    const resolved = await resolveClaudeKey(hasOwnClaudeKey, userId, db, apiKeys.claude);
     if (!resolved) {
         return void res.status(402).json({
             detail: `You've used all ${PLATFORM_LIMIT} free messages this month. Add your own API key in Settings to continue.`,
