@@ -21,7 +21,6 @@ function getClient(): S3Client {
   return new S3Client({
     region: "auto",
     endpoint: process.env.R2_ENDPOINT_URL!,
-    forcePathStyle: true,
     credentials: {
       accessKeyId: process.env.R2_ACCESS_KEY_ID!,
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
@@ -36,6 +35,11 @@ export const storageEnabled = Boolean(
   process.env.R2_ACCESS_KEY_ID &&
   process.env.R2_SECRET_ACCESS_KEY,
 );
+
+// Log R2 config at startup (endpoint URL only, no secrets)
+console.log("[R2] endpoint:", process.env.R2_ENDPOINT_URL ?? "(not set)");
+console.log("[R2] bucket:", process.env.R2_BUCKET_NAME ?? "mike (default)");
+console.log("[R2] access key id:", process.env.R2_ACCESS_KEY_ID ? `${process.env.R2_ACCESS_KEY_ID.slice(0, 6)}…` : "(not set)");
 
 // ---------------------------------------------------------------------------
 // Upload
