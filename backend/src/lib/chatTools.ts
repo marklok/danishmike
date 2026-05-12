@@ -3169,15 +3169,13 @@ export async function buildDocContext(
     }
 
     const ids = [...documentIds];
-    console.log("[buildDocContext] documentIds from messages:", ids);
     if (ids.length > 0) {
-        const { data: docs, error: docErr } = await db
+        const { data: docs } = await db
             .from("documents")
             .select("id, filename, file_type, current_version_id, status")
             .in("id", ids)
             .eq("user_id", userId)
             .eq("status", "ready");
-        console.log("[buildDocContext] DB query result:", { docs, docErr });
 
         const docList = (docs ?? []) as unknown as {
             id: string;
