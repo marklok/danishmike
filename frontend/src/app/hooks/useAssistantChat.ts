@@ -775,6 +775,29 @@ export function useAssistantChat({
                             continue;
                         }
 
+                        if (data.type === "error") {
+                            const errorMsg =
+                                typeof data.message === "string"
+                                    ? data.message
+                                    : "Something went wrong. Please try again.";
+                            flushDrip();
+                            setMessages((prev) => {
+                                const updated = [...prev];
+                                const last = updated[updated.length - 1];
+                                if (last?.role === "assistant") {
+                                    updated[updated.length - 1] = {
+                                        ...last,
+                                        content: errorMsg,
+                                        events: [{ type: "content", text: errorMsg }],
+                                    };
+                                }
+                                return updated;
+                            });
+                            setIsResponseLoading(false);
+                            setIsLoadingCitations(false);
+                            continue;
+                        }
+
                         if (data.type === "loading_citations") {
                             setIsLoadingCitations(true);
                             continue;

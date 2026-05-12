@@ -228,10 +228,16 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         }
     } catch (err) {
         console.error("[project-chat/stream] error:", err);
+        const errObj = err as Record<string, unknown> | null;
+        const errType =
+            (errObj?.error as Record<string, unknown> | undefined)?.type ??
+            (errObj as Record<string, unknown> | undefined)?.type;
+        const userMessage =
+            errType === "overloaded_error"
+                ? "Claude er i øjeblikket overbelastet. Vent et øjeblik og prøv igen."
+                : "Der opstod en fejl. Prøv venligst igen.";
         try {
-            write(
-                `data: ${JSON.stringify({ type: "error", message: "Stream error" })}\n\n`,
-            );
+            write(`data: ${JSON.stringify({ type: "error", message: userMessage })}\n\n`);
             write("data: [DONE]\n\n");
         } catch {
             /* ignore */
