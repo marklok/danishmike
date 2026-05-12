@@ -564,14 +564,8 @@ chatRouter.post("/", requireAuth, async (req, res) => {
         hasLawContext: !!lawContextExtra,
     });
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
-
-    const write = (line: string) => res.write(line);
-
+    // Resolve API keys BEFORE flushing headers so we can still send a proper
+    // HTTP error response (e.g. 402) if the user is over their monthly limit.
     const [apiKeys, apiKeyStatus] = await Promise.all([
         getUserApiKeys(userId, db),
         getUserApiKeyStatus(userId, db),
@@ -590,6 +584,14 @@ chatRouter.post("/", requireAuth, async (req, res) => {
         });
     }
     const effectiveApiKeys = { ...apiKeys, claude: resolved.key };
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const write = (line: string) => res.write(line);
 
     try {
         write(`data: ${JSON.stringify({ type: "chat_id", chatId })}\n\n`);
