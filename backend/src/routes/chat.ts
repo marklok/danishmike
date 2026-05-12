@@ -12,6 +12,11 @@ import {
 } from "../lib/chatTools";
 import { completeText } from "../lib/llm";
 import { getUserApiKeys, getUserModelSettings } from "../lib/userSettings";
+import {
+    resolveClaudeKey,
+    incrementPlatformUsage,
+    PLATFORM_LIMIT,
+} from "../lib/platformUsage";
 import { checkProjectAccess } from "../lib/access";
 import { retrieveDanishLaw, formatLawContext } from "../lib/lawRetrieval";
 import { getUserEmbeddingsKey } from "../lib/userApiKeys";
@@ -566,6 +571,15 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
     const apiKeys = await getUserApiKeys(userId, db);
 
+    // Resolve which Claude key to use: user's own key, or platform-sponsored key.
+    const resolved = await resolveClaudeKey(apiKeys.claude, userId, db);
+    if (!resolved) {
+        return void res.status(402).json({
+            detail: `You've used all ${PLATFORM_LIMIT} free messages this month. Add your own API key in Settings to continue.`,
+        });
+    }
+    const effectiveApiKeys = { ...apiKeys, claude: resolved.key };
+
     try {
         write(`data: ${JSON.stringify({ type: "chat_id", chatId })}\n\n`);
 
@@ -578,7 +592,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
             write,
             workflowStore,
             model,
-            apiKeys,
+            apiKeys: effectiveApiKeys,
             projectId: resolvedProjectId,
             lawChunks: retrievedLawChunks,
         });
@@ -587,6 +601,11 @@ chatRouter.post("/", requireAuth, async (req, res) => {
             fullTextLen: fullText?.length ?? 0,
             eventCount: events?.length ?? 0,
         });
+
+        // Count this message against the platform budget if we used the platform key.
+        if (resolved.usingPlatform) {
+            await incrementPlatformUsage(userId, db);
+        }
 
         const annotations = extractAnnotations(fullText, docIndex, events);
         await db.from("chat_messages").insert({

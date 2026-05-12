@@ -18,7 +18,8 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { MikeIcon } from "@/components/chat/mike-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
-import { listProjects } from "@/app/lib/mikeApi";
+import { listProjects, getPlatformUsage, type PlatformUsage } from "@/app/lib/mikeApi";
+import { WelcomeModal } from "@/app/components/shared/WelcomeModal";
 
 const NAV_ITEMS = [
     { href: "/assistant", label: "Assistant", icon: MessageSquare },
@@ -44,6 +45,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
     const [projectNames, setProjectNames] = useState<Record<string, string>>(
         {},
     );
+    const [platformUsage, setPlatformUsage] = useState<PlatformUsage | null>(null);
 
     useEffect(() => {
         if (!user) return;
@@ -53,6 +55,13 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 for (const p of projects) map[p.id] = p.name;
                 setProjectNames(map);
             })
+            .catch(() => {});
+    }, [user]);
+
+    useEffect(() => {
+        if (!user) return;
+        getPlatformUsage()
+            .then(setPlatformUsage)
             .catch(() => {});
     }, [user]);
 
@@ -108,6 +117,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
     if (!user) return null;
 
     return (
+        <>
         <div
             className={`${
                 isOpen
@@ -252,6 +262,32 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 </div>
             )}
 
+            {/* Platform usage counter — only shown when sidebar is open and user has no own key */}
+            {isOpen && platformUsage && !platformUsage.hasOwnKey && (
+                <div className={`px-4 pb-2 ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
+                    <div className="rounded-lg bg-gray-100 px-3 py-2.5 flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-500 font-medium">Gratis beskeder</span>
+                            <span className={`font-semibold tabular-nums ${platformUsage.remaining === 0 ? "text-red-600" : "text-gray-800"}`}>
+                                {platformUsage.remaining}/{platformUsage.limit}
+                            </span>
+                        </div>
+                        <div className="h-1 rounded-full bg-gray-200 overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all ${
+                                    platformUsage.remaining === 0
+                                        ? "bg-red-400"
+                                        : platformUsage.remaining <= 5
+                                        ? "bg-amber-400"
+                                        : "bg-gray-500"
+                                }`}
+                                style={{ width: `${Math.round((platformUsage.remaining / platformUsage.limit) * 100)}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* User Profile */}
             <div className="mt-auto">
                 {user && (
@@ -307,5 +343,14 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 )}
             </div>
         </div>
+
+        {/* Welcome modal — shown once on first login */}
+        {platformUsage && !platformUsage.hasOwnKey && (
+            <WelcomeModal
+                userId={user.id}
+                freeMessages={platformUsage.limit}
+            />
+        )}
+        </>
     );
 }

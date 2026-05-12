@@ -9,6 +9,10 @@ import {
   normalizeApiKeyProvider,
   saveUserApiKey,
 } from "../lib/userApiKeys";
+import {
+  getPlatformUsage,
+  PLATFORM_LIMIT,
+} from "../lib/platformUsage";
 
 export const userRouter = Router();
 
@@ -251,6 +255,25 @@ userRouter.put("/api-keys/:provider", requireAuth, async (req, res) => {
     });
     res.status(500).json({ detail: "Failed to save API key" });
   }
+});
+
+// GET /user/platform-usage
+// Returns how many platform-sponsored messages this user has used this month,
+// the monthly limit, messages remaining, and whether they have their own Claude key.
+userRouter.get("/platform-usage", requireAuth, async (_req, res) => {
+  const userId = res.locals.userId as string;
+  const db = createServerSupabase();
+  const [used, apiKeyStatus] = await Promise.all([
+    getPlatformUsage(userId, db),
+    getUserApiKeyStatus(userId, db),
+  ]);
+  const hasOwnKey = apiKeyStatus.sources?.claude === "user";
+  res.json({
+    used,
+    limit: PLATFORM_LIMIT,
+    remaining: Math.max(PLATFORM_LIMIT - used, 0),
+    hasOwnKey,
+  });
 });
 
 // DELETE /user/account

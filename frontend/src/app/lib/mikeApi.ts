@@ -142,6 +142,17 @@ export async function getApiKeyStatus(): Promise<ApiKeyStatus> {
     return apiRequest<ApiKeyStatus>("/user/api-keys");
 }
 
+export type PlatformUsage = {
+    used: number;
+    limit: number;
+    remaining: number;
+    hasOwnKey: boolean;
+};
+
+export async function getPlatformUsage(): Promise<PlatformUsage> {
+    return apiRequest<PlatformUsage>("/user/platform-usage");
+}
+
 export async function saveApiKey(
     provider: ApiKeyProvider,
     apiKey: string | null,
