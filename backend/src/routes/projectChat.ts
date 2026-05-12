@@ -16,7 +16,9 @@ import { getUserApiKeyStatus } from "../lib/userApiKeys";
 import {
     resolveClaudeKey,
     incrementPlatformUsage,
+    isOverloadedError,
     PLATFORM_LIMIT,
+    PLATFORM_FALLBACK_MODEL,
 } from "../lib/platformUsage";
 import { checkProjectAccess } from "../lib/access";
 import { retrieveDanishLaw, formatLawContext } from "../lib/lawRetrieval";
@@ -192,27 +194,52 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
     try {
         write(`data: ${JSON.stringify({ type: "chat_id", chatId })}\n\n`);
 
-        const { fullText, events } = await runLLMStream({
-            apiMessages,
-            docStore,
-            docIndex,
-            userId,
-            db,
-            write,
-            extraTools: PROJECT_EXTRA_TOOLS,
-            workflowStore,
-            model,
-            apiKeys: effectiveApiKeys,
-            projectId,
-            lawChunks: retrievedLawChunks,
-        });
+        let result: { fullText: string; events: unknown[] };
+        try {
+            result = await runLLMStream({
+                apiMessages,
+                docStore,
+                docIndex,
+                userId,
+                db,
+                write,
+                extraTools: PROJECT_EXTRA_TOOLS,
+                workflowStore,
+                model,
+                apiKeys: effectiveApiKeys,
+                projectId,
+                lawChunks: retrievedLawChunks,
+            });
+        } catch (primaryErr) {
+            if (isOverloadedError(primaryErr) && effectiveApiKeys.openai) {
+                console.warn("[project-chat/stream] Claude overloaded — falling back to OpenAI", PLATFORM_FALLBACK_MODEL);
+                result = await runLLMStream({
+                    apiMessages,
+                    docStore,
+                    docIndex,
+                    userId,
+                    db,
+                    write,
+                    extraTools: PROJECT_EXTRA_TOOLS,
+                    workflowStore,
+                    model: PLATFORM_FALLBACK_MODEL,
+                    apiKeys: effectiveApiKeys,
+                    projectId,
+                    lawChunks: retrievedLawChunks,
+                });
+            } else {
+                throw primaryErr;
+            }
+        }
+
+        const { fullText, events } = result;
 
         // Count this message against the platform budget if we used the platform key.
         if (resolved.usingPlatform) {
             await incrementPlatformUsage(userId, db);
         }
 
-        const annotations = extractAnnotations(fullText, docIndex, events);
+        const annotations = extractAnnotations(fullText, docIndex, events as Parameters<typeof extractAnnotations>[2]);
         await db.from("chat_messages").insert({
             chat_id: chatId,
             role: "assistant",
@@ -228,14 +255,9 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         }
     } catch (err) {
         console.error("[project-chat/stream] error:", err);
-        const errObj = err as Record<string, unknown> | null;
-        const errType =
-            (errObj?.error as Record<string, unknown> | undefined)?.type ??
-            (errObj as Record<string, unknown> | undefined)?.type;
-        const userMessage =
-            errType === "overloaded_error"
-                ? "Claude er i øjeblikket overbelastet. Vent et øjeblik og prøv igen."
-                : "Der opstod en fejl. Prøv venligst igen.";
+        const userMessage = isOverloadedError(err)
+            ? "Claude er i øjeblikket overbelastet og der er ingen OpenAI fallback konfigureret. Prøv igen om lidt."
+            : "Der opstod en fejl. Prøv venligst igen.";
         try {
             write(`data: ${JSON.stringify({ type: "error", message: userMessage })}\n\n`);
             write("data: [DONE]\n\n");

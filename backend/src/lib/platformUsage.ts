@@ -5,8 +5,10 @@
  * free messages per calendar month, funded by the platform key.
  *
  * Env vars:
- *   ANTHROPIC_API_KEY        — platform Anthropic key (already used by default)
+ *   ANTHROPIC_API_KEY        — platform Anthropic key
+ *   OPENAI_API_KEY           — platform OpenAI key (used as fallback when Claude is overloaded)
  *   PLATFORM_MESSAGE_LIMIT   — messages per user per month (default: 30)
+ *   PLATFORM_FALLBACK_MODEL  — OpenAI model to use as fallback (default: gpt-4.1-mini)
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -15,6 +17,18 @@ export const PLATFORM_LIMIT = parseInt(
     process.env.PLATFORM_MESSAGE_LIMIT ?? "30",
     10,
 );
+
+export const PLATFORM_FALLBACK_MODEL =
+    process.env.PLATFORM_FALLBACK_MODEL ?? "gpt-4.1-mini";
+
+/** Returns true when the error is an Anthropic overloaded_error. */
+export function isOverloadedError(err: unknown): boolean {
+    if (!err || typeof err !== "object") return false;
+    const e = err as Record<string, unknown>;
+    // Anthropic SDK wraps it as { error: { type: "overloaded_error" } }
+    const inner = e.error as Record<string, unknown> | undefined;
+    return inner?.type === "overloaded_error" || e.type === "overloaded_error";
+}
 
 /** Current month as 'YYYY-MM'. */
 export function currentMonth(): string {
