@@ -69,7 +69,14 @@ export async function fetchRegulationHtml(celex: string): Promise<string> {
   const local = localFilePath(celex);
   if (fs.existsSync(local)) {
     console.log(`  Loading from local file: ${local}`);
-    return fs.readFileSync(local, "utf-8");
+    // Security: Validate that the resolved path stays within the intended directory
+    const baseDir = path.resolve(__dirname, "../../data/eurlex");
+    const resolvedLocal = path.resolve(local);
+    const relativeCheck = path.relative(baseDir, resolvedLocal);
+    if (relativeCheck.startsWith('..') || path.isAbsolute(relativeCheck)) {
+      throw new Error('Invalid file path');
+    }
+    return fs.readFileSync(resolvedLocal, "utf-8");
   }
 
   // Try fetching from EUR-Lex directly.
